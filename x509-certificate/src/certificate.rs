@@ -958,21 +958,11 @@ impl X509CertificateBuilder {
         self.csr_attributes.push(attribute);
     }
 
-    /// Create a new certificate given settings, using a randomly generated key pair.
-    pub fn create_with_random_keypair(
+    /// Create a new certificate with the given settings, using the provided key pair.
+    pub fn create(
         &self,
-    ) -> Result<
-        (
-            CapturedX509Certificate,
-            InMemorySigningKeyPair,
-            ring::pkcs8::Document,
-        ),
-        Error,
-    > {
-        let (key_pair, document) = InMemorySigningKeyPair::generate_random(self.key_algorithm)?;
-
-        let key_pair_signature_algorithm = key_pair.signature_algorithm();
-
+        key_pair: &InMemorySigningKeyPair,
+    ) -> Result<CapturedX509Certificate, Error> {
         let issuer = if let Some(issuer) = &self.issuer {
             issuer
         } else {
@@ -982,7 +972,7 @@ impl X509CertificateBuilder {
         let tbs_certificate = rfc5280::TbsCertificate {
             version: Some(rfc5280::Version::V3),
             serial_number: self.serial_number.into(),
-            signature: key_pair_signature_algorithm?.into(),
+            signature: key_pair.signature_algorithm()?.into(),
             issuer: issuer.clone(),
             validity: rfc5280::Validity {
                 not_before: Time::from(self.not_before),
@@ -1027,7 +1017,23 @@ impl X509CertificateBuilder {
 
         let cert = CapturedX509Certificate::from_der(cert_der)?;
 
-        Ok((cert, key_pair, document))
+        Ok(cert)
+    }
+
+    /// Create a new certificate given settings, using a randomly generated key pair.
+    pub fn create_with_random_keypair(
+        &self,
+    ) -> Result<
+        (
+            CapturedX509Certificate,
+            InMemorySigningKeyPair,
+            ring::pkcs8::Document,
+        ),
+        Error,
+    > {
+        let (key_pair, document) = InMemorySigningKeyPair::generate_random(self.key_algorithm)?;
+
+        Ok((self.create(&key_pair)?, key_pair, document))
     }
 
     /// Create a new certificate signing request (CSR).
